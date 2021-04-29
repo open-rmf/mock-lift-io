@@ -1,7 +1,5 @@
 #include <Arduino.h>
 
-#define sgn(x) ((x) < 0 ? -1 : ((x) > 0 ? 1 : 0))
-
 enum Debug_Levels {
   NONE = 0,
   MINIMAL = 1,
@@ -12,7 +10,27 @@ enum Debug_Levels {
 #define debug_level DEBUG
 #define debug_print(x, level) ((level) <= debug_level ? Serial.print(x) : 0)
 #define debug_println(x, level) ((level) <= debug_level ? Serial.println(x) : 0)
-//#define debug_println(x, level) (Serial.println(x))
+
+#define sgn(x) ((x) < 0 ? -1 : ((x) > 0 ? 1 : 0))
+
+/*
+Pin map
+{13}, {12, 14, 27, 26, 25, 33, 32}, Inputs only {35, 34, 39, 36}
+{2, 0, 4, 16, 17} , {21, 3, 1, 22}
+
+//2, 0 are unused
+*/
+
+const uint8_t PIN_FLOOR[] = {4, 16, 17, 21, 3};
+const uint8_t PIN_DOOR_STATE[] = {1, 22}; 
+const uint8_t PIN_MOTION_STATE[] = {13, 12};
+const uint8_t PIN_SERVICE_STATE[] = {14, 27};
+
+const uint8_t PIN_CALL_BUTTON[] = {26, 25, 33, 32, 35};
+const uint8_t PIN_DOOR_BUTTON[] = {34};
+
+const uint8_t PIN_SWITCH_SERVICE[] = {39, 36}; //fire, out of service 
+
 
 // Wifi and OTA
 #include <WiFi.h>
@@ -20,11 +38,11 @@ enum Debug_Levels {
 #include <ESPAsyncWebServer.h>
 #include <AsyncElegantOTA.h>
 
+AsyncWebServer server(80);
+
 // LCD driver
 #include <U8g2lib.h>
-
-AsyncWebServer server(80);
-U8G2_ST7920_128X64_F_SW_SPI u8g2(U8G2_R0, /* clock=*/ 18, /* data=*/ 23, /* cs=*/ 2, /* reset=*/ 4);
+U8G2_ST7920_128X64_F_SW_SPI u8g2(U8G2_R0, 18, 23, 5, 15); //clk, data, cs, rst
 
 uint8_t font_height;
 // Screen handler
@@ -44,42 +62,11 @@ void init_screen(void) {
   display_prepare();
   
   // Populate basic text
-  u8g2.drawStr(10, 10, "OSRC");
-  u8g2.drawStr(10, 20, "Lift simulator");
+  u8g2.drawStr(0, 10, "            OSRC");
+  u8g2.drawStr(0, 30, "      Lift simulator");
   u8g2.sendBuffer();
-  delay(1000);
+  delay(2000);
 }
-// dont use {11, 10, 9}
-//{13}, {12, 14, 27, 26, 25, 33, 32, 35, 34, 39, 36}
-
-
-//{6, 7, 8, 15, 2, 0, 4, 16, 17, 5, 18, 19}, {21, 3, 1, 22, 23}
-// dont use {6, 7, 8, 2, 4, 5, 18, 19}, {3, 1, 23}
-//==> {15, 0, 16, 17}, {21, 22}
-
-/*
-const uint8_t PIN_FLOOR[] = {11, 10, 9};
-const uint8_t PIN_DOOR_STATE[] = {13, 12}; 
-const uint8_t PIN_MOTION_STATE[] = {14, 27};
-const uint8_t PIN_SERVICE_STATE[] = {26, 25}; //,33, 32, 35, 34, 39
-
-const uint8_t PIN_CALL_BUTTON[] = {15, 0, 16};
-const uint8_t PIN_DOOR_BUTTON[] = {17};
-
-const uint8_t PIN_SWITCH_SERVICE[] = {21, 22}; //fire, out of service 
-*/
-
-const uint8_t PIN_FLOOR[] = {12, 14, 27};
-const uint8_t PIN_DOOR_STATE[] = {26, 25}; 
-const uint8_t PIN_MOTION_STATE[] = {33, 32};
-const uint8_t PIN_SERVICE_STATE[] = {35, 34}; //39
-
-const uint8_t PIN_CALL_BUTTON[] = {15, 0, 16}; 
-const uint8_t PIN_DOOR_BUTTON[] = {36};
-const uint8_t PIN_SWITCH_SERVICE[] = {13, 17}; //fire, out of service //11,10,9
-
-
-
 
 struct LIFT_STATE {
   uint8_t floor; 
@@ -113,7 +100,7 @@ enum Service_States {
 };
 
 const uint8_t MIN_FLOOR = 0;
-const uint8_t MAX_FLOOR = 2;
+const uint8_t MAX_FLOOR = (sizeof(PIN_CALL_BUTTON)/sizeof(PIN_CALL_BUTTON[0])) - 1; // see how many call buttons we have, those are the number of floors for us
 
 struct LIFT_STATE lift_state;
 
@@ -125,6 +112,7 @@ void init_lift_states(void) {
   lift_state.call_active = false;
 }
 
+// generates a random motion direction
 int8_t random_motion_direction(int8_t min, int8_t max) {
   int8_t direction;
   long rand = random(0,15000);
@@ -136,13 +124,12 @@ int8_t random_motion_direction(int8_t min, int8_t max) {
   else
     direction= 0;
   
-  if(max == 0)
-    if(direction > 0)
-      direction = 0;
-  if(min == 0)
-    if(direction < 0)
-      direction = 0;
-  
+  if((max == 0) && (direction > 0))
+    direction = 0;
+
+  if((min == 0) && (direction < 0))
+    direction = 0;
+
   return direction;
 }
 
@@ -161,14 +148,31 @@ void input_output_init(void) {
     pinMode(PIN_SWITCH_SERVICE[i], INPUT);
     digitalWrite(PIN_SWITCH_SERVICE[i], LOW);
   }
-    
+  
+  // set output pins, and tentatively initialize to low
+  for(int8_t i = 0; i < sizeof(PIN_FLOOR) / sizeof(PIN_FLOOR[0]); i++ ) {
+    pinMode(PIN_FLOOR[i], OUTPUT);
+    digitalWrite(PIN_FLOOR[i], LOW);
+  }
+  for(int8_t i = 0; i < sizeof(PIN_DOOR_STATE) / sizeof(PIN_DOOR_STATE[0]); i++ ) {
+    pinMode(PIN_DOOR_STATE[i], OUTPUT);
+    digitalWrite(PIN_DOOR_STATE[i], LOW);
+  }
+  for(int8_t i = 0; i < sizeof(PIN_MOTION_STATE) / sizeof(PIN_MOTION_STATE[0]); i++ ) {
+    pinMode(PIN_MOTION_STATE[i], OUTPUT);
+    digitalWrite(PIN_MOTION_STATE[i], LOW);
+  }
+  for(int8_t i = 0; i < sizeof(PIN_SERVICE_STATE) / sizeof(PIN_SERVICE_STATE[0]); i++ ) {
+    pinMode(PIN_SERVICE_STATE[i], OUTPUT);
+    digitalWrite(PIN_SERVICE_STATE[i], LOW);
+  }
 }
  
 void setup(void) {
   // Set serial baud to 115200bps
   Serial.begin(115200);
 
-  // pull inputs low
+  // pull inputs, outputs low
   input_output_init();
 
   // Get our mac id and use it to generate a nice SSID
@@ -391,10 +395,8 @@ void update_screen(void) {
 }
 
 unsigned long motion_update_time = 0;
-unsigned long motion_update_rate;
-unsigned long door_open_timestamp;
+unsigned long door_open_timestamp = 0;
 uint8_t _call_button;
-uint8_t _open_button;
 
 // Normal motion model
 void lift_normal_motion_simulator(uint16_t door_dwell) {
@@ -460,51 +462,62 @@ void lift_normal_motion_simulator(uint16_t door_dwell) {
 }
 
 // Call motion model
-void lift_call_motion_simulator(void) {
+void lift_call_motion_simulator(uint16_t door_dwell) {
 
   // if we have arrived on our intended floor, Door is Open, set call to inactive
-  if((lift_state.floor == _call_button) && (lift_state.door_state >= OPEN)){
-    lift_state.call_active = false;
+  if(lift_state.floor == _call_button) {
+    // Set our motion direction as stationary
+    lift_state.motion_direction = STATIONARY;
+
+    // Door is not open, start opening the door
+    if(lift_state.door_state < OPEN)
+      lift_state.door_state++; 
+
+    // Door is Open && Door open button is not held, set call to inactive
+    else if((lift_state.door_state >= OPEN) && (lift_state.door_button != 0))
+      lift_state.call_active = false;    
   }
 
-  // else make the lift move
+  // if we are not on the intended floor
   else{
     // if call is for an opposite direction of motion, reject call
     if(( _call_button - (lift_state.floor + lift_state.motion_direction)) > (_call_button - lift_state.floor)) {
         lift_state.call_active = false;
-        _call_button = 255;
       }
+    // accept call if it is in our direction
     else {
-        // if we are at the floor we intend to be, start opening door
-        if(lift_state.floor == _call_button) {
-          if(lift_state.door_state <= OPENING) {
-           lift_state.door_state++;
-           door_open_timestamp = millis();
-          }
-
-          // If door is OPEN && dwell time is more than random && OPEN button is not pressed
-          if((lift_state.door_state == OPEN) && ((millis() - door_open_timestamp) > random(5000, 15000)) && (_open_button != 0))
-            lift_state.door_state++;
-        }
-        // set motion direction and move lift if needed
+      // if doors are Close, move lift 
+      if(lift_state.door_state == CLOSE) {
         lift_state.motion_direction = sgn(_call_button - lift_state.floor);
         lift_state.floor = lift_state.floor + lift_state.motion_direction;
+      }
+      //otherwise start closing them
+      else {
+        // if doors are open dwell for a random time
+        if(lift_state.door_state < OPEN) {
+          door_open_timestamp = millis();
+          lift_state.door_state++;
+        }
+        else if(lift_state.door_state == OPEN) {
+          if(millis() >= (door_open_timestamp + door_dwell))
+            lift_state.door_state++;
+        }
+        else
+          lift_state.door_state = CLOSE;
+      }
     }
   }
 }
 
 // Lift motion simulator task
 void update_lift_controller(void) {
-  uint16_t random_door_dwell = random(3000, 10000);
-
-  if (lift_state.call_button != 255) {
+  // if we have a new incoming call request, take it if the door open button is not held
+  if ((lift_state.call_button != 255) && (lift_state.door_button != 0)){
     lift_state.call_active = true;
     _call_button = lift_state.call_button;
   }
-  if (lift_state.door_button != 255) {
-    _open_button = lift_state.door_button;
-  }
 
+  // if we are in fire or out of service, cancel calls and put lift in the right service state
   if (lift_state.service_switch != 255) {
     lift_state.service_state = lift_state.service_switch;
     lift_state.call_active = false;
@@ -517,16 +530,19 @@ void update_lift_controller(void) {
       lift_state.service_state = NORMAL;
   }  
 
-  // randomize next motion update time
-  motion_update_rate = random(2000, 5000);
+  // if call is complete, clear the car call 
+  if(lift_state.call_active == false)
+    _call_button = 255;
 
-  if (millis() >= (motion_update_time + motion_update_rate))  {
+  // randomize next motion update time and run appropriate motion simulator if it is time
+  if (millis() >= (motion_update_time + random(2000, 5000)))  {
     motion_update_time = millis();
 
+    // randomize door dwell time while running motion simulation
     if(lift_state.call_active)
-      lift_call_motion_simulator();
+      lift_call_motion_simulator(random(3000, 10000));
     else
-      lift_normal_motion_simulator(random_door_dwell);
+      lift_normal_motion_simulator(random(3000, 10000));
   }
 }
 
@@ -545,6 +561,6 @@ void loop(void) {
     update_screen();
   }
 
-  // Loop call needed to restart ESP32 after update
+  // kill and restart ESP32 if OTA update receives new firmware
   AsyncElegantOTA.loop();
 }
