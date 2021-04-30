@@ -1,51 +1,8 @@
-#include <Arduino.h>
+#include <includes.h>
 
-enum Debug_Levels {
-  NONE = 0,
-  MINIMAL = 1,
-  DEBUG = 2,
-  VERBOSE = 3
-};
+// Screen handlers
+U8G2_ST7920_128X64_F_SW_SPI u8g2(U8G2_R0, PIN_LCD[0], PIN_LCD[1], PIN_LCD[2], PIN_LCD[3]);
 
-#define debug_level DEBUG
-#define debug_print(x, level) ((level) <= debug_level ? Serial.print(x) : 0)
-#define debug_println(x, level) ((level) <= debug_level ? Serial.println(x) : 0)
-
-#define sgn(x) ((x) < 0 ? -1 : ((x) > 0 ? 1 : 0))
-
-/*
-Pin map
-{13}, {12, 14, 27, 26, 25, 33, 32}, Inputs only {35, 34, 39, 36}
-{2, 0, 4, 16, 17} , {21, 3, 1, 22}
-
-//2, 0 are unused
-*/
-
-const uint8_t PIN_FLOOR[] = {4, 16, 17, 21, 3};
-const uint8_t PIN_DOOR_STATE[] = {1, 22}; 
-const uint8_t PIN_MOTION_STATE[] = {13, 12};
-const uint8_t PIN_SERVICE_STATE[] = {14, 27};
-
-const uint8_t PIN_CALL_BUTTON[] = {26, 25, 33, 32, 35};
-const uint8_t PIN_DOOR_BUTTON[] = {34};
-
-const uint8_t PIN_SWITCH_SERVICE[] = {39, 36}; //fire, out of service 
-
-
-// Wifi and OTA
-#include <WiFi.h>
-#include <AsyncTCP.h>
-#include <ESPAsyncWebServer.h>
-#include <AsyncElegantOTA.h>
-
-AsyncWebServer server(80);
-
-// LCD driver
-#include <U8g2lib.h>
-U8G2_ST7920_128X64_F_SW_SPI u8g2(U8G2_R0, 18, 23, 5, 15); //clk, data, cs, rst
-
-uint8_t font_height;
-// Screen handler
 void display_prepare(void) {
   u8g2.clearBuffer();
   u8g2.setFontRefHeightExtendedText();
@@ -57,8 +14,7 @@ void display_prepare(void) {
 void init_screen(void) {
   u8g2.begin();
 
-  u8g2.setFont(u8g2_font_5x7_tf);
-  font_height = 6;  
+  u8g2.setFont(font_type); 
   display_prepare();
   
   // Populate basic text
@@ -67,37 +23,6 @@ void init_screen(void) {
   u8g2.sendBuffer();
   delay(2000);
 }
-
-struct LIFT_STATE {
-  uint8_t floor; 
-  int8_t motion_direction;
-  uint8_t door_state;
-  uint8_t service_state;
-  uint8_t call_button;
-  uint8_t door_button;
-  uint8_t service_switch;
-  bool call_active;
-};
-
-enum Motion_Directions {
-  DOWN = -1,
-  STATIONARY = 0,
-  UP = 1
-};
-
-enum Door_States {
-  CLOSE = 0,
-  OPENING = 1,
-  OPEN = 2,
-  CLOSING = 3
-};
-
-enum Service_States {
-  NORMAL = 0,
-  AGV = 1,
-  FIRE = 2,
-  OUT_OF_SERVICE = 3
-};
 
 const uint8_t MIN_FLOOR = 0;
 const uint8_t MAX_FLOOR = (sizeof(PIN_CALL_BUTTON)/sizeof(PIN_CALL_BUTTON[0])) - 1; // see how many call buttons we have, those are the number of floors for us
@@ -167,27 +92,27 @@ void input_output_init(void) {
     digitalWrite(PIN_SERVICE_STATE[i], LOW);
   }
 }
- 
+
+AsyncWebServer server(webserver_port);
+
 void setup(void) {
-  // Set serial baud to 115200bps
-  Serial.begin(115200);
+  
+  Serial.begin(serial_baud);
 
   // pull inputs, outputs low
   input_output_init();
 
   // Get our mac id and use it to generate a nice SSID
-  String ssid_prefix = "Mock-Lift-";
   String ssid_string = ssid_prefix + WiFi.macAddress();
   const char* ssid = ssid_string.c_str();
-  const char* password = "open-rmf";
-
+  
   // Start in AP mode
   debug_println("Setting AP", MINIMAL);
-  WiFi.softAP(ssid, password);
-  debug_print("OTA SSID: ", MINIMAL);
+  WiFi.softAP(ssid, psk);
+  debug_print("OTA AP SSID: ", MINIMAL);
   debug_println(ssid, MINIMAL);
   debug_print("PSK: ", DEBUG);
-  debug_println(password, DEBUG);
+  debug_println(psk, DEBUG);
 
   // Print our station IP to serial monitor (for reference)
   IPAddress IP = WiFi.softAPIP();
@@ -196,14 +121,11 @@ void setup(void) {
 
   // Default landing page
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(200, "text/plain", "Hi! I am Mock Lift controller.");
+    request->send(200, "text/plain", "Hi! I am OSRC Lift Simulator.");
   });
 
   // Start ElegantOTA
-  const char* ota_username = "user";
-  const char* ota_password = "password";
-
-  AsyncElegantOTA.begin(&server, ota_username, ota_password);    
+   AsyncElegantOTA.begin(&server, ota_username, ota_password);    
   server.begin();
   debug_println("HTTP server started", MINIMAL);
   debug_print("Login credentials: ", DEBUG);
@@ -555,7 +477,7 @@ void loop(void) {
   // Update lift controller
   update_lift_controller();
   
-  // Update display on screen
+  // Update display on screen, if it is time
   if((screen_update_timestamp + 1000) <= millis()) {
     screen_update_timestamp = millis();
     update_screen();
