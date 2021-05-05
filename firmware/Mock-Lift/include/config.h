@@ -1,3 +1,6 @@
+#ifndef CONFIG_H 
+#define CONFIG_H 
+
 // debug info print level
 #define debug_level DEBUG
 
@@ -19,3 +22,5 @@
 // OTA credentials
 #define ota_username "user"
 #define ota_password "password"
+
+#endif

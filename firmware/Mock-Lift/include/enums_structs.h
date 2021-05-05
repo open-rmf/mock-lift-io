@@ -1,3 +1,6 @@
+#ifndef ENUS_STRUCTS_H 
+#define ENUS_STRUCTS_H
+
 enum Debug_Levels {
   NONE = 0,
   MINIMAL = 1,
@@ -35,3 +38,5 @@ struct LIFT_STATE {
   uint8_t service_switch;
   bool call_active;
 };
+
+#endif
