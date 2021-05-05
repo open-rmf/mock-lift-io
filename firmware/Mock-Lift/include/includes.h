@@ -8,9 +8,6 @@
 #include <pindefs.h>
 #include <helper_functions.h>
 
-// Configs
-#include <config.h>
-
 // Wifi and OTA
 /*
   Asynchronous WebServer library for Espressif MCUs
@@ -81,4 +78,7 @@ Universal 8bit Graphics Library (https://github.com/olikraus/u8g2/)
   */
  #include <U8g2lib.h>
 
- #endif
+ // Configs
+#include <config.h>
+
+#endif
