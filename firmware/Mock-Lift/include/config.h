@@ -9,7 +9,7 @@
 // Set serial baud to 115200bps
 #define serial_baud 115200
 
-// AP setup
+// OTA AP setup
 #define ssid_prefix "Mock-Lift-"
 #define psk "open-rmf"
 
