@@ -171,8 +171,8 @@ void input_output_handler(void) {
     digitalWrite(PIN_MOTION_STATE[1], LOW);
   }
   if(lift_state.motion_direction == STATIONARY) {
-    digitalWrite(PIN_MOTION_STATE[0], HIGH);
-    digitalWrite(PIN_MOTION_STATE[1], HIGH);
+    digitalWrite(PIN_MOTION_STATE[0], LOW); // [AV 20210622] Changed from HIGH
+    digitalWrite(PIN_MOTION_STATE[1], LOW); // [AV 20210622] Changed from HIGH
   }
   if(lift_state.motion_direction == DOWN) {
     digitalWrite(PIN_MOTION_STATE[0], LOW);
@@ -181,20 +181,20 @@ void input_output_handler(void) {
 
   // Set output signal: Door state
   if(lift_state.door_state == CLOSE) {
-    digitalWrite(PIN_DOOR_STATE[0], LOW);
-    digitalWrite(PIN_DOOR_STATE[1], LOW);
+    digitalWrite(PIN_DOOR_STATE[0], HIGH); // [AV 20210622] Changed from LOW
+    digitalWrite(PIN_DOOR_STATE[1], LOW); 
   }
   if(lift_state.door_state == OPENING) {
-    digitalWrite(PIN_DOOR_STATE[0], HIGH);
-    digitalWrite(PIN_DOOR_STATE[1], LOW);
+    digitalWrite(PIN_DOOR_STATE[0], LOW); 
+    digitalWrite(PIN_DOOR_STATE[1], LOW); 
   }
   if(lift_state.door_state == OPEN) {
-    digitalWrite(PIN_DOOR_STATE[0], HIGH);
-    digitalWrite(PIN_DOOR_STATE[1], HIGH);
+    digitalWrite(PIN_DOOR_STATE[0], LOW);  // [AV 20210622] Changed from HIGH
+    digitalWrite(PIN_DOOR_STATE[1], HIGH);  
   }
   if(lift_state.door_state == CLOSING) {
-    digitalWrite(PIN_DOOR_STATE[0], LOW);
-    digitalWrite(PIN_DOOR_STATE[1], HIGH);
+    digitalWrite(PIN_DOOR_STATE[0], LOW); 
+    digitalWrite(PIN_DOOR_STATE[1], LOW);  // [AV 20210622] Changed from HIGH
   }
 
   // Set output signal: Service state
@@ -419,7 +419,7 @@ void lift_call_motion_simulator(uint16_t door_dwell) {
   // if we are not on the intended floor
   else{
     // if call is for an opposite direction of motion, reject call
-    if(( _call_button - (lift_state.floor + lift_state.motion_direction)) > (_call_button - lift_state.floor)) {
+    if((( _call_button - (lift_state.floor + lift_state.motion_direction)) > (_call_button - lift_state.floor)) && (simulated_motion)){
         lift_state.call_active = false;
       }
     // accept call if it is in our direction
@@ -479,8 +479,10 @@ void update_lift_controller(void) {
     // randomize door dwell time while running motion simulation
     if(lift_state.call_active)
       lift_call_motion_simulator(random(3000, 10000));
-    else
+    else if(simulated_motion)
       lift_normal_motion_simulator(random(3000, 10000));
+    else
+      lift_state.motion_direction = STATIONARY;
   }
 }
 

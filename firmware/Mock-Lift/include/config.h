@@ -23,4 +23,7 @@
 #define ota_username "user"
 #define ota_password "password"
 
+// Simulated lift motion by "humans"
+#define simulated_motion false
+
 #endif
