@@ -1,5 +1,5 @@
-#ifndef ENUS_STRUCTS_H 
-#define ENUS_STRUCTS_H
+#ifndef ENUMS_STRUCTS_H 
+#define ENUMS_STRUCTS_H
 
 enum Debug_Levels {
   NONE = 0,
@@ -39,4 +39,4 @@ struct LIFT_STATE {
   bool call_active;
 };
 
-#endif
+#endif //ENUMS_STRUCTS_H

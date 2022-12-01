@@ -2,7 +2,7 @@
 #define CONFIG_H 
 
 // debug info print level
-#define debug_level DEBUG
+#define DEBUG_LEVEL DEBUG
 
 // LCD
 #define font_height 6
@@ -10,20 +10,20 @@
 // font reference: https://github.com/olikraus/u8g2/wiki/fntlistall
 
 // Set serial baud to 115200bps
-#define serial_baud 115200
+#define SERIAL_BAUD 115200
 
 // OTA AP setup
-#define ssid_prefix "Mock-Lift-"
-#define psk "open-rmf"
+#define SSID_PREFIX "Mock-Lift-"
+#define PSK "open-rmf"
 
 // OTA webserver port
-#define webserver_port 80
+#define WEBSERVER_PORT 80
 
 // OTA credentials
-#define ota_username "user"
-#define ota_password "password"
+#define OTA_USERNAME "user"
+#define OTA_PASSWORD "password"
 
 // Simulated lift motion by "humans"
-#define simulated_motion false
+#define SIMULATED_MOTION true
 
 #endif

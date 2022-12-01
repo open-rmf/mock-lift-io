@@ -1,5 +1,6 @@
 /*
   Copyright 2021 Open Source Robotics Corporation
+  akash @ openrobotics . org
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -36,6 +37,10 @@ void init_screen(void) {
   // Populate basic text
   u8g2.drawStr(0, 10, "            OSRC");
   u8g2.drawStr(0, 30, "      Lift simulator");
+  if(SIMULATED_MOTION)
+    u8g2.drawStr(0, 40, "Human riding this lift!");
+  else
+    u8g2.drawStr(0, 40, "A very obidient lift :)");
   u8g2.sendBuffer();
   delay(2000);
 }
@@ -109,22 +114,22 @@ void input_output_init(void) {
   }
 }
 
-AsyncWebServer server(webserver_port);
+AsyncWebServer server(WEBSERVER_PORT);
 
 void setup(void) {
   
-  Serial.begin(serial_baud);
+  Serial.begin(SERIAL_BAUD);
 
   // pull inputs, outputs low
   input_output_init();
 
   // Get our mac id and use it to generate a nice SSID
-  String ssid_string = ssid_prefix + WiFi.macAddress();
+  String ssid_string = SSID_PREFIX + WiFi.macAddress();
   const char* ssid = ssid_string.c_str();
   
   // Start in AP mode
   debug_println("Setting AP", MINIMAL);
-  WiFi.softAP(ssid, psk);
+  WiFi.softAP(ssid, PSK);
   debug_print("OTA AP SSID: ", MINIMAL);
   debug_println(ssid, MINIMAL);
   debug_print("PSK: ", DEBUG);
@@ -141,13 +146,13 @@ void setup(void) {
   });
 
   // Start ElegantOTA
-   AsyncElegantOTA.begin(&server, ota_username, ota_password);    
+   AsyncElegantOTA.begin(&server, OTA_USERNAME, OTA_PASSWORD);    
   server.begin();
   debug_println("HTTP server started", MINIMAL);
   debug_print("Login credentials: ", DEBUG);
-  debug_print(ota_username, DEBUG);
+  debug_print(OTA_USERNAME, DEBUG);
   debug_print(" , ", DEBUG);
-  debug_println(ota_username, DEBUG);
+  debug_println(OTA_USERNAME, DEBUG);
 
   // Initialize screen
   init_screen();
@@ -419,7 +424,7 @@ void lift_call_motion_simulator(uint16_t door_dwell) {
   // if we are not on the intended floor
   else{
     // if call is for an opposite direction of motion, reject call
-    if((( _call_button - (lift_state.floor + lift_state.motion_direction)) > (_call_button - lift_state.floor)) && (simulated_motion)){
+    if((( _call_button - (lift_state.floor + lift_state.motion_direction)) > (_call_button - lift_state.floor)) && (SIMULATED_MOTION)){
         lift_state.call_active = false;
       }
     // accept call if it is in our direction
@@ -479,7 +484,7 @@ void update_lift_controller(void) {
     // randomize door dwell time while running motion simulation
     if(lift_state.call_active)
       lift_call_motion_simulator(random(3000, 10000));
-    else if(simulated_motion)
+    else if(SIMULATED_MOTION)
       lift_normal_motion_simulator(random(3000, 10000));
     else
       lift_state.motion_direction = STATIONARY;

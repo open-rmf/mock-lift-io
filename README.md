@@ -1,2 +1,4 @@
 # Mock lift simulator module
-Provides hardware IO emulating a lift controller's signals for testing RMF interface hardware
+Emulates I/Os on a elevator (lift) for use towards testing of lift interface controllers.
+
+![block_diagram](lift_simulator_block_diagram.png)
