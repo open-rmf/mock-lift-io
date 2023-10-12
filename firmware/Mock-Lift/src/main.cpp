@@ -133,7 +133,7 @@ void setup(void) {
   debug_print("OTA AP SSID: ", MINIMAL);
   debug_println(ssid, MINIMAL);
   debug_print("PSK: ", DEBUG);
-  debug_println(psk, DEBUG);
+  debug_println(PSK, DEBUG);
 
   // Print our station IP to serial monitor (for reference)
   IPAddress IP = WiFi.softAPIP();
@@ -146,7 +146,7 @@ void setup(void) {
   });
 
   // Start ElegantOTA
-   AsyncElegantOTA.begin(&server, OTA_USERNAME, OTA_PASSWORD);    
+   AsyncElegantOTA.begin(&server, OTA_USERNAME, OTA_PASSWORD); 
   server.begin();
   debug_println("HTTP server started", MINIMAL);
   debug_print("Login credentials: ", DEBUG);
@@ -164,11 +164,31 @@ void setup(void) {
 // IO handler
 void input_output_handler(void) {
   // Set output signal: Floor
-  digitalWrite(PIN_FLOOR[lift_state.floor], HIGH);
+  if ((OUTPUT_SIGNALS_IN_AGV_MODE_ONLY == true) && (lift_state.service_state == AGV))
+    digitalWrite(PIN_FLOOR[lift_state.floor], HIGH);
+
   for(int8_t i = 0; i < sizeof(PIN_FLOOR) / sizeof(PIN_FLOOR[0]); i++ ) {
     if(i != lift_state.floor)
       digitalWrite(PIN_FLOOR[i], LOW);
   }
+
+  /*
+  for(int8_t i = 0; i < sizeof(PIN_FLOOR) / sizeof(PIN_FLOOR[0]); i++ ) {
+    // if lift is not in AGV mode, dont output floor info to signal output
+    if (OUTPUT_SIGNALS_IN_AGV_MODE_ONLY == true) {
+      if (lift_state.service_state == AGV) {
+        if(i != lift_state.floor)
+          digitalWrite(PIN_FLOOR[i], LOW);
+      }
+      else
+        digitalWrite(PIN_FLOOR[i], LOW);
+    }
+    else {
+      if(i != lift_state.floor)
+        digitalWrite(PIN_FLOOR[i], LOW);
+    }
+  }
+  */
 
   // Set output signal: Motion direction
   if(lift_state.motion_direction == UP) {
@@ -339,6 +359,7 @@ void update_screen(void) {
 
 unsigned long motion_update_time = 0;
 unsigned long door_open_timestamp = 0;
+unsigned long door_state_change_timestamp = 0;
 uint8_t _call_button;
 
 // Normal motion model
@@ -404,8 +425,10 @@ void lift_normal_motion_simulator(uint16_t door_dwell) {
     
 }
 
-// Call motion model
-void lift_call_motion_simulator(uint16_t door_dwell) {
+// Call motion model 
+// door_dwell specifies the time the door stays open by default once arrived at floor.
+// door_state_change_time specifies the time it needs for the door to change states (i.e. move from closed -> opening -> open and the other way)
+void lift_call_motion_simulator(uint16_t door_dwell, uint16_t door_state_change_time) {
 
   // if we have arrived on our intended floor, Door is Open, set call to inactive
   if(lift_state.floor == _call_button) {
@@ -414,8 +437,11 @@ void lift_call_motion_simulator(uint16_t door_dwell) {
 
     // Door is not open, start opening the door
     if(lift_state.door_state < OPEN)
-      lift_state.door_state++; 
-
+      if(millis() >= (door_state_change_timestamp + door_dwell)) {
+        door_state_change_timestamp = millis();
+        lift_state.door_state++;
+      }
+         
     // Door is Open && Door open button is not held, set call to inactive
     else if((lift_state.door_state >= OPEN) && (lift_state.door_button != 0))
       lift_state.call_active = false;    
@@ -478,12 +504,12 @@ void update_lift_controller(void) {
     _call_button = 255;
 
   // randomize next motion update time and run appropriate motion simulator if it is time
-  if (millis() >= (motion_update_time + random(2000, 5000)))  {
+  if (millis() >= (motion_update_time + random(3000, 8000)))  {
     motion_update_time = millis();
 
     // randomize door dwell time while running motion simulation
     if(lift_state.call_active)
-      lift_call_motion_simulator(random(3000, 10000));
+      lift_call_motion_simulator(random(3000, 10000), DOOR_STATE_CHANGE_TIME);
     else if(SIMULATED_MOTION)
       lift_normal_motion_simulator(random(3000, 10000));
     else

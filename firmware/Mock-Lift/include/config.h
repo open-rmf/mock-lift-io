@@ -2,7 +2,7 @@
 #define CONFIG_H 
 
 // debug info print level
-#define DEBUG_LEVEL DEBUG
+#define DEBUG_LEVEL VERBOSE
 
 // LCD
 #define font_height 6
@@ -25,5 +25,9 @@
 
 // Simulated lift motion by "humans"
 #define SIMULATED_MOTION true
+
+// Lift behavior
+#define DOOR_STATE_CHANGE_TIME 5000
+#define OUTPUT_SIGNALS_IN_AGV_MODE_ONLY true
 
 #endif
